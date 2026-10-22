@@ -1,0 +1,193 @@
+{
+  "Routes": [
+    {
+      "DownstreamPathTemplate": "/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "identityservice",
+          "Port": 5000
+        }
+      ],
+      "UpstreamPathTemplate": "/identityservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "identityservice"
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "camera-service",
+          "Port": 5101
+        }
+      ],
+      "UpstreamPathTemplate": "/cameraservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "cameraservice"
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "alert-service",
+          "Port": 5102
+        }
+      ],
+      "UpstreamPathTemplate": "/alertservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "alertservice"
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "notification-service",
+          "Port": 5103
+        }
+      ],
+      "UpstreamPathTemplate": "/notificationservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "notificationservice"
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "system-service",
+          "Port": 5108
+        }
+      ],
+      "UpstreamPathTemplate": "/systemservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "systemservice"
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "report-service",
+          "Port": 5104
+        }
+      ],
+      "UpstreamPathTemplate": "/reportservice/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "reportservice"
+    },
+    {
+      "DownstreamPathTemplate": "/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "detection-sitting",
+          "Port": 8001
+        }
+      ],
+      "UpstreamPathTemplate": "/detect/sitting/{everything}",
+      "UpstreamHttpMethod": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "RouteName": "detection-sitting"
+    },
+    {
+      "DownstreamPathTemplate": "/ws/alerts",
+      "DownstreamScheme": "ws",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "alert-service",
+          "Port": 5102
+        }
+      ],
+      "UpstreamPathTemplate": "/ws/alerts",
+      "UpstreamHttpMethod": [
+        "GET"
+      ],
+      "RouteName": "ws-alerts"
+    },
+    {
+      "DownstreamPathTemplate": "/ws/cameras",
+      "DownstreamScheme": "ws",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "camera-service",
+          "Port": 5101
+        }
+      ],
+      "UpstreamPathTemplate": "/ws/cameras",
+      "UpstreamHttpMethod": [
+        "GET"
+      ],
+      "RouteName": "ws-cameras"
+    },
+    {
+      "DownstreamPathTemplate": "/ws/notifications",
+      "DownstreamScheme": "ws",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "notification-service",
+          "Port": 5103
+        }
+      ],
+      "UpstreamPathTemplate": "/ws/notifications",
+      "UpstreamHttpMethod": [
+        "GET"
+      ],
+      "RouteName": "ws-notifications"
+    }
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:8888",
+    "Timeout": 30
+  }
+}

@@ -1,0 +1,13 @@
+# Local credentials and overrides
+.env
+.env.*
+!.env.example
+
+# Build and editor output
+**/bin/
+**/obj/
+.vs/
+.vscode/
+__pycache__/
+*.pyc
+/docs/

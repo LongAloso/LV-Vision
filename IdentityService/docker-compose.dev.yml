@@ -1,0 +1,32 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${SQL_PASSWORD:-ChangeMe_DevOnly_123!}"
+    ports:
+      - "1435:1433"
+    volumes:
+      - identity_sqlserver_dev:/var/opt/mssql
+
+  identityservice:
+    build:
+      context: ..
+      dockerfile: IdentityService/IdentityService.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      CONNECTIONSTRINGS__SPCDATABASE: "Server=sqlserver,1433;Database=Honda;User Id=sa;Password=${SQL_PASSWORD:-ChangeMe_DevOnly_123!};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True"
+      JWT__KEY: "${SPC_JWT_KEY:-development-only-jwt-signing-key-minimum-32-chars}"
+      INTERNALAPI__KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      CONFIGCENTER__INTERNALAPIKEY: "${SPC_CONFIGCENTER_INTERNAL_KEY:-development-only-config-center-key}"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - sqlserver
+
+volumes:
+  identity_sqlserver_dev:

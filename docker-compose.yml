@@ -1,0 +1,4 @@
+# Entry point for the current Phase 2 stack. Service definitions live in the
+# development file until production secrets, migrations and retention are ready.
+include:
+  - docker-compose.dev.yml

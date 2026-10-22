@@ -1,0 +1,9 @@
+bin
+obj
+**/*.user
+**/*.suo
+**/*.csproj.user
+.vs
+.git
+.gitignore
+docker-compose*.yml

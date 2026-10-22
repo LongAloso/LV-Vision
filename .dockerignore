@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.git/
+.vs/
+.vscode/
+**/bin/
+**/obj/
+**/__pycache__/
+docs/
+Q-OneSPC (Dùng để tham khảo cấu trúc APIGateway)/

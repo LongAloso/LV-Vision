@@ -1,0 +1,334 @@
+# =============================================
+# LV-Vision — docker-compose.dev.yml (Phase 0–3 in progress)
+# Nói đơn giản: bản đồ xếp các "thùng container" cho máy dev.
+# Chạy: docker compose -f docker-compose.dev.yml up -d
+# Xem: docker compose -f docker-compose.dev.yml ps
+# Tắt: docker compose -f docker-compose.dev.yml down
+# Học theo Q-OneSPC: mỗi service có healthcheck (tự khám sức khỏe),
+# service sau chờ service trước "healthy" mới chạy (depends_on + condition).
+# Phase 2D chạy Gateway, Identity, detector, camera, cảnh báo, thông báo,
+# hệ thống và giao diện web trên cùng mạng dev.
+# =============================================
+
+services:
+  # ---------- 1. PostgreSQL: sổ chính cho service Python ----------
+  postgres:
+    image: postgres:16
+    container_name: lv-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-lvuser}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-ChangeMe_Pg_123!}"
+      POSTGRES_DB: "${POSTGRES_DB:-lvvision}"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - lv_postgres_dev:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready: hỏi "postgres sống chưa?"
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lvuser} -d ${POSTGRES_DB:-lvvision}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------- 2. MongoDB: kho ảnh/log/clip minh chứng ----------
+  mongo:
+    image: mongo:7.0
+    container_name: lv-mongo-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_ROOT_USERNAME:-lvadmin}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_ROOT_PASSWORD:-ChangeMe_Mongo_123!}"
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - lv_mongo_dev:/data/db
+    healthcheck:
+      # Copy từ Q-OneSPC: ping admin DB
+      test: ["CMD-SHELL", "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------- 3. Redis: băng chuyền việc ----------
+  # Các hàng đợi: analytics:events, vision:clip:jobs,
+  # behavior:dryrun:jobs, plc:commands (xem docs/API-CONTRACT.md)
+  redis:
+    image: redis:7-alpine
+    container_name: lv-redis-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - lv_redis_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------- 4. RabbitMQ: loa phát thanh (kế thừa Q-OneSPC) ----------
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: lv-rabbitmq-dev
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-admin}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-development-only-rabbit-password}"
+    ports:
+      - "127.0.0.1:5672:5672"     # Cổng service gọi nhau
+      - "127.0.0.1:15672:15672"   # Cổng web quản trị: http://localhost:15672
+    volumes:
+      - lv_rabbitmq_dev:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------- 5. SQL Server: cho IdentityService C# (giữ nguyên) ----------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: lv-sqlserver-dev
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${SQL_PASSWORD:-ChangeMe_DevOnly_123!}"
+    ports:
+      - "127.0.0.1:1435:1433"
+    volumes:
+      - lv_sqlserver_dev:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # ---------- 6. IdentityService (C# có sẵn; Phase 0 chỉ vá startup Development) ----------
+  identityservice:
+    build:
+      context: .
+      dockerfile: IdentityService/IdentityService.Api/Dockerfile
+    container_name: lv-identity-dev
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      CONNECTIONSTRINGS__SPCDATABASE: "Server=sqlserver,1433;Database=LVVision;User Id=sa;Password=${SQL_PASSWORD:-ChangeMe_DevOnly_123!};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True"
+      JWT__KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT__ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT__AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+      INTERNALAPI__KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      CONFIGCENTER__INTERNALAPIKEY: "${SPC_CONFIGCENTER_INTERNAL_KEY:-development-only-config-center-key}"
+      RABBITMQ__HOST: rabbitmq
+      RABBITMQ__USERNAME: "${RABBITMQ_USER:-admin}"
+      RABBITMQ__PASSWORD: "${RABBITMQ_PASS:-development-only-rabbit-password}"
+    expose:
+      - "5000"  # Chỉ Gateway/service nội bộ gọi; browser dùng :8888.
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ---------- 7. API Gateway (C# Ocelot, Phase 1) ----------
+  apigateway:
+    build:
+      context: .
+      dockerfile: ApiGateway/ApiGateway.Api/Dockerfile
+    container_name: lv-apigateway-dev
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8888
+      CONFIGCENTER__BASEURL: http://identityservice:5000
+      CONFIGCENTER__INTERNALAPIKEY: "${SPC_CONFIGCENTER_INTERNAL_KEY:-development-only-config-center-key}"
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - lv_gateway_config_dev:/data/config
+    depends_on:
+      identityservice:
+        condition: service_healthy
+
+  # ---------- 8. Camera + kịch bản (Python, Phase 2A) ----------
+  camera-service:
+    build:
+      context: ./CameraService
+    container_name: lv-camera-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-lvuser}:${POSTGRES_PASSWORD:-ChangeMe_Pg_123!}@postgres:5432/${POSTGRES_DB:-lvvision}"
+      IDENTITY_URL: http://identityservice:5000
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+      INTERNAL_API_KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      CAMERA_RTSP_KEY: "${CAMERA_RTSP_KEY:-development-only-camera-rtsp-encryption-key-1234567890}"
+    expose:
+      - "5101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+
+  # ---------- 9. Detector ngồi lối đi (Python, Phase 2B) ----------
+  detection-sitting:
+    build:
+      context: ./DetectionSittingService
+    container_name: lv-detection-sitting-dev
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: /models/model.pt
+      MODEL_DEVICE: cpu
+      MODEL_IMGSZ: "416"
+      OPENCV_FFMPEG_CAPTURE_OPTIONS: "rtsp_transport;tcp"
+      EVIDENCE_DIR: /data/evidence
+      REDIS_URL: redis://redis:6379/0
+      CAMERA_SERVICE_URL: http://camera-service:5101
+      IDENTITY_URL: http://identityservice:5000
+      INTERNAL_API_KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+    expose:
+      - "8001"
+    volumes:
+      - lv_evidence_dev:/data/evidence
+    depends_on:
+      camera-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- 10. Sổ cảnh báo + danh mục (Python, Phase 2C) ----------
+  alert-service:
+    build:
+      context: ./AlertService
+    container_name: lv-alert-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-lvuser}:${POSTGRES_PASSWORD:-ChangeMe_Pg_123!}@postgres:5432/${POSTGRES_DB:-lvvision}"
+      REDIS_URL: redis://redis:6379/0
+      CAMERA_SERVICE_URL: http://camera-service:5101
+      IDENTITY_URL: http://identityservice:5000
+      INTERNAL_API_KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+    expose:
+      - "5102"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      camera-service:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+
+  # ---------- 11. Báo cáo đọc cảnh báo (Python, Phase 3) ----------
+  report-service:
+    build:
+      context: ./ReportService
+    container_name: lv-report-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-lvuser}:${POSTGRES_PASSWORD:-ChangeMe_Pg_123!}@postgres:5432/${POSTGRES_DB:-lvvision}"
+      IDENTITY_URL: http://identityservice:5000
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+    expose:
+      - "5104"
+    depends_on:
+      alert-service:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+
+  # ---------- 12. Chuông và thông báo live (Python, Phase 2D) ----------
+  notification-service:
+    build:
+      context: ./NotificationService
+    container_name: lv-notification-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-lvuser}:${POSTGRES_PASSWORD:-ChangeMe_Pg_123!}@postgres:5432/${POSTGRES_DB:-lvvision}"
+      REDIS_URL: redis://redis:6379/0
+      IDENTITY_URL: http://identityservice:5000
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+    expose:
+      - "5103"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+
+  # ---------- 13. Tình trạng hệ thống (Python, Phase 2D) ----------
+  system-service:
+    build:
+      context: ./SystemService
+    container_name: lv-system-dev
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      IDENTITY_URL: http://identityservice:5000
+      INTERNAL_API_KEY: "${SPC_INTERNAL_API_KEY:-development-only-internal-api-key}"
+      JWT_KEY: "${LV_JWT_KEY:-development-only-jwt-signing-key-toi-thieu-32-ky-tu-1234567890}"
+      JWT_ISSUER: "${LV_JWT_ISSUER:-IdentityServiceDev}"
+      JWT_AUDIENCE: "${LV_JWT_AUDIENCE:-IdentityClientsDev}"
+      EVIDENCE_DIR: /data/evidence
+    expose:
+      - "5108"
+    volumes:
+      - lv_evidence_dev:/data/evidence:ro
+    depends_on:
+      camera-service:
+        condition: service_healthy
+      detection-sitting:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+
+  # ---------- 14. Vue 3 + PrimeVue (Phase 2D–3) ----------
+  web:
+    build:
+      context: ./web
+    container_name: lv-web-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      apigateway:
+        condition: service_healthy
+      system-service:
+        condition: service_healthy
+
+volumes:
+  lv_postgres_dev:
+  lv_mongo_dev:
+  lv_redis_dev:
+  lv_rabbitmq_dev:
+  lv_sqlserver_dev:
+  lv_gateway_config_dev:
+  lv_evidence_dev:
+
+networks:
+  default:
+    name: lv-vision-dev

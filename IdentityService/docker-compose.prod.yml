@@ -1,0 +1,15 @@
+services:
+  identityservice:
+    build:
+      context: ..
+      dockerfile: IdentityService/IdentityService.Api/Dockerfile
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+      CONNECTIONSTRINGS__SPCDATABASE: "${SPC_SQL_CONNECTION_STRING:?SPC_SQL_CONNECTION_STRING is required}"
+      JWT__KEY: "${SPC_JWT_KEY:?SPC_JWT_KEY is required}"
+      INTERNALAPI__KEY: "${SPC_INTERNAL_API_KEY:?SPC_INTERNAL_API_KEY is required}"
+      CONFIGCENTER__INTERNALAPIKEY: "${SPC_CONFIGCENTER_INTERNAL_KEY:?SPC_CONFIGCENTER_INTERNAL_KEY is required}"
+    ports:
+      - "5000:5000"
